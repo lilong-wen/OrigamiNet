@@ -38,6 +38,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
     bleu = 0.0
     infer_time = 0
     valid_loss_avg = Averager()
+    tokenizer = AutoTokenizer.from_pretrained(bert_base_model)#, do_lower_case=config['model_bert']['do_lower_case'])
 
     for i, (image_tensors, labels) in enumerate(evaluation_loader):
         batch_size = image_tensors.size(0)
@@ -46,7 +47,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
         text_for_loss, length_for_loss = converter.encode(labels)
         labels_snippets = random_select_txt_snippets(labels)
         text_snippets_for_loss, length_snippets_for_loss = converter.encode(labels_snippets)
-        gt_sim = gt_txt_sim(text, length_for_loss, text_snippets_for_loss, length_snippets_for_loss)
+        gt_sim = gt_txt_sim(text_for_loss, length_for_loss, text_snippets_for_loss, length_snippets_for_loss)
         gt_sim = torch.FloatTensor(gt_sim)
         labels_input = tokenizer(labels_snippets,
                                  return_tensors="pt",
@@ -55,7 +56,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
 
         start_time = time.time()
 
-        preds, sim_value = model(image, labels_snippets)
+        preds, sim_value = model(image, labels_input)
         preds = preds.float()
         forward_time = time.time() - start_time
 

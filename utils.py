@@ -182,9 +182,21 @@ def random_select_txt_snippets(txt_batch, minLen=10):
     for txt in txt_batch:
 
         total_len = len(txt.split())
-        random_len = random.randint(minLen, total_len-1)
 
-        random_start_point = random.choice(list(range(total_len - random_len)))
+        if (total_len - 1) <= minLen:
+            minLen = int(minLen / 2)
+
+        # print(8*"#")
+        # print(total_len)
+        # print(txt)
+        random_len = random.randint(minLen, total_len-1)
+        # print(random_len)
+        # print(8*"#")
+
+        if random_len == total_len:
+            random_start_point = 0
+        else:
+            random_start_point = random.choice(list(range(total_len - random_len)))
 
         selected_txt = txt.split()[random_start_point: random_start_point+random_len-1]
 
