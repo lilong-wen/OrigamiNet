@@ -10,7 +10,8 @@ import numpy as np
 import editdistance
 from nltk.translate.bleu_score import sentence_bleu
 import horovod.torch as hvd
-
+from utils import random_select_txt_snippets, gt_txt_sim
+from transformers import AutoTokenizer
 from utils import Averager
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -28,7 +29,7 @@ def metric_sum_ddp(tensor, av=False):
         rt /= dist.get_world_size()
     return rt
 
-def validation(model, criterion, evaluation_loader, converter, opt, parO):
+def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter, opt, parO, bert_base_model):
     """ validation or evaluation """
     n_correct = 0
     norm_ED = 0
@@ -43,10 +44,19 @@ def validation(model, criterion, evaluation_loader, converter, opt, parO):
         image = image_tensors.to(device)
 
         text_for_loss, length_for_loss = converter.encode(labels)
+        labels_snippets = random_select_txt_snippets(labels)
+        text_snippets_for_loss, length_snippets_for_loss = converter.encode(labels_snippets)
+        gt_sim = gt_txt_sim(text, length_for_loss, text_snippets_for_loss, length_snippets_for_loss)
+        gt_sim = torch.FloatTensor(gt_sim)
+        labels_input = tokenizer(labels_snippets,
+                                 return_tensors="pt",
+                                 padding=True,
+                                 truncation=True).to(device)
 
         start_time = time.time()
 
-        preds = model(image, '')
+        preds, sim_value = model(image, labels_snippets)
+        preds = preds.float()
         forward_time = time.time() - start_time
 
         # Calculate evaluation loss for CTC deocder.
@@ -56,7 +66,9 @@ def validation(model, criterion, evaluation_loader, converter, opt, parO):
         # To avoid ctc_loss issue, disabled cudnn for the computation of the ctc_loss
         # https://github.com/jpuigcerver/PyLaia/issues/16
         torch.backends.cudnn.enabled = False
-        cost = criterion(preds, text_for_loss, preds_size, length_for_loss).mean()
+        cost_ctc = criterion_ctc(preds, text_for_loss, preds_size, length_for_loss).mean()
+        cost_sim = criterion_sim(sim_value.to(device), gt_sim.to(device)).sum()
+        cost = cost_ctc + cost_sim
         torch.backends.cudnn.enabled = True
 
         _, preds_index = preds.max(2)

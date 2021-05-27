@@ -72,6 +72,14 @@ OrigamiNet.lreszs = {
                   10: @s1/Upsample(),
                   11: @s2/Upsample()
             }
+            
+# similarity measuer part
+OrigamiNet.VOCAB_SIZE = 10000
+OrigamiNet.EMBEDDING_DIM = 80
+OrigamiNet.RNN_UNITS = 64
+OrigamiNet.BI_RNN = True
+OrigamiNet.RNN_LAYERS = 2
+
 
 # Parameters for InitBlock (cnv_model.py):
 # ==============================================================================

@@ -5,6 +5,9 @@ import horovod.torch as hvd
 
 from copy import deepcopy
 from collections import OrderedDict
+
+import editdistance
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -36,7 +39,8 @@ class CTCLabelConverter(object):
         text = ''.join(text)
         text = [self.dict[char] for char in text]
 
-        return (torch.IntTensor(text).to(device), torch.IntTensor(length).to(device))
+        return (torch.IntTensor(text).to(device),
+                torch.IntTensor(length).to(device))
 
     def decode(self, text_index, length):
         """ convert text-index into text-label. """
@@ -170,15 +174,43 @@ class ModelEma:
                     model_v = model_v.to(device=self.device)
                 ema_v.copy_(ema_v * _cdecay + (1. - _cdecay) * model_v)
 
+# TODO seriously wrong, only works on single data item, make sure to change
+def random_select_txt_snippets(txt_batch, minLen=10):
 
-def random_select_txt_snippets(txt, minLen=20):
+    result_txt_batch = []
 
-    total_len = len(txt)
-    random_len = random.randint(minLen, total_len)
-    print(random_len)
+    for txt in txt_batch:
 
-    random_start_point = random.choice(list(range(total_len - random_len)))
+        total_len = len(txt.split())
+        random_len = random.randint(minLen, total_len-1)
 
-    selected_txt = txt[random_start_point: random_start_point+random_len-1]
+        random_start_point = random.choice(list(range(total_len - random_len)))
 
-    return selected_txt
+        selected_txt = txt.split()[random_start_point: random_start_point+random_len-1]
+
+        result_txt_batch.append(" ".join(selected_txt))
+
+    return result_txt_batch
+
+def gt_txt_sim(txt_batch, txt_len, snippets_batch, snippets_len):
+
+    start_txt = 0
+    end_txt = 0
+
+    start_snippets = 0
+    end_snippets = 0
+
+    distance_sum = []
+
+    for num, len_item in enumerate(txt_len):
+        # print(f'len_item is : {len_item}')
+        start_txt = end_txt
+        end_txt = txt_len[num]
+        start_snippets = end_snippets
+        end_snippets = snippets_len[num]
+        distance = editdistance.eval(txt_batch[start_txt: end_txt],
+                                     snippets_batch[start_snippets: end_snippets]) / len_item.item()
+
+        distance_sum.append(distance)
+
+    return distance_sum

@@ -116,9 +116,42 @@ class InitBlock(nn.Module):
         x  = torch.cat([x,xt],1)
         return x
 
+'''
+class Simcal(nn.Module):
+    # defining the structure of the network
+    def __init__(self, VOCAB_SIZE, EMBEDDING_DIM, RNN_UNITS,
+                 BI_RNN, RNN_LAYERS ):
+        super(Simcal, self).__init__()
+        # self.embedding = nn.Embedding(VOCAB_SIZE + 1, EMBEDDING_DIM)
+        self.rnn = nn.GRU(EMBEDDING_DIM, RNN_UNITS, bidirectional=BI_RNN, 
+                          num_layers=RNN_LAYERS, batch_first=True)
+        self.lin1 = nn.Linear(RNN_UNITS * 2, 96)
+        self.lin2 = nn.Linear(96, 28)
+        self.out = nn.Linear(28, 1)
+
+    # defining steps in forward pass
+    def forward(self, x1, x2):
+        try:
+            # x1 = self.embedding(x1)
+            # x2 = self.embedding(x2)
+            print(self.rnn(x1))
+            x1 = self.rnn(x1)[1]
+            x1 = x1.view(-1, x1.size()[1], x1.size()[2]).sum(dim=0)
+            x2 = self.rnn(x2)[1]
+            x2 = x2.view(-1, x2.size()[1], x2.size()[2]).sum(dim=0)
+            lin = self.lin1(torch.cat((x1, x2), 1))
+            lin = torch.relu(self.lin2(lin))
+            pred = self.out(lin)
+            return pred
+        except IndexError:
+            print(x1.max(), x2.max())
+'''
+
 @gin.configurable
 class OrigamiNet(nn.Module):
-    def __init__(self, n_channels, o_classes, wmul, lreszs, lszs, nlyrs, fup, GradCheck, reduceAxis=3):
+    def __init__(self, n_channels, o_classes, wmul, lreszs, lszs, nlyrs, fup, GradCheck,
+                 VOCAB_SIZE, EMBEDDING_DIM, RNN_UNITS, BI_RNN, RNN_LAYERS,
+                 reduceAxis=3):
         super().__init__()
 
         self.lreszs = lreszs
@@ -129,7 +162,7 @@ class OrigamiNet(nn.Module):
                                                    [0,1,2,3,4,5])
         # projection MLP for BERT model
         self.bert_l1 = nn.Linear(768, 768) #768 is the size of the BERT embbedings
-        self.bert_l2 = nn.Linear(768, 512) #768 is the size of the BERT embbedings
+        self.bert_l2 = nn.Linear(768, 80) #768 is the size of the BERT embbedings
     
         layers = []
         isz = fup + n_channels
@@ -158,6 +191,13 @@ class OrigamiNet(nn.Module):
         self.it=0
         self.gc = GradCheck
         self.reduceAxis = reduceAxis
+
+        # similarity measure
+        self.rnn = nn.GRU(EMBEDDING_DIM, RNN_UNITS, bidirectional=BI_RNN, 
+                          num_layers=RNN_LAYERS, batch_first=True)
+        self.lin1 = nn.Linear(RNN_UNITS * 2, 96)
+        self.lin2 = nn.Linear(96, 28)
+        self.out = nn.Linear(28, 1)
 
     def _get_bert_basemodel(self, bert_model_name, freeze_layers):
         try:
@@ -195,12 +235,27 @@ class OrigamiNet(nn.Module):
         outputs = self.bert_model(**encoded_inputs)
 
         with torch.no_grad():
-            sentence_embeddings = self.mean_pooling(outputs, encoded_inputs['attention_mask']).half()
+            sentence_embeddings = self.mean_pooling(outputs, encoded_inputs['attention_mask'])
             x = self.bert_l1(sentence_embeddings)
             x = F.relu(x)
             out_emb = self.bert_l2(x)
 
         return out_emb
+    
+    def sim_measure(self, x1, x2):
+        try:
+            # x1 = self.embedding(x1)
+            # x2 = self.embedding(x2)
+            x1 = self.rnn(x1)[1]
+            x1 = x1.view(-1, x1.size()[1], x1.size()[2]).sum(dim=0)
+            x2 = self.rnn(x2)[1]
+            x2 = x2.view(-1, x2.size()[1], x2.size()[2]).sum(dim=0)
+            lin = self.lin1(torch.cat((x1, x2), 1))
+            lin = torch.relu(self.lin2(lin))
+            pred = torch.sigmoid(self.out(lin))
+            return pred
+        except IndexError:
+            print(x1.max(), x2.max())
 
     def forward(self, x, encoded_inputs):
         x = self.Initsq(x)
@@ -217,7 +272,11 @@ class OrigamiNet(nn.Module):
         x = self.n1(x)
         x = x.permute(0,2,1)
 
-        txt_emb = self.text_encoder(encoded_inputs)
+        txt_emb = self.text_encoder(encoded_inputs).unsqueeze(1)
 
-        return x, txt_emb
+        # print(f'input x shape {x.shape}')
+        # print(f'input txt_emb shape {txt_emb.shape}')
+        sim = self.sim_measure(x, txt_emb)
+
+        return x, sim
     

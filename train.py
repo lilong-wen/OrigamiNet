@@ -36,7 +36,7 @@ from apex.multi_tensor_apply import multi_tensor_applier
 import wandb
 import ds_load
 
-from utils import CTCLabelConverter, Averager, ModelEma, Metric, random_select_txt_snippets
+from utils import CTCLabelConverter, Averager, ModelEma, Metric, random_select_txt_snippets, gt_txt_sim
 from cnv_model import OrigamiNet, ginM
 from test import validation
 
@@ -49,8 +49,8 @@ parOptions.__new__.__defaults__ = (False,) * len(parOptions._fields)
 pO = None
 OnceExecWorker = None
 
-#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-device = 'cpu'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def init_bn(model):
     if type(model) in [torch.nn.InstanceNorm2d, torch.nn.BatchNorm2d]:
         init.ones_(model.weight)
@@ -143,7 +143,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
     if pO.DP:
         model = torch.nn.DataParallel(model)
     elif pO.DDP:
-        model = pDDP(model, device_ids=[opt.rank], output_device=opt.rank,find_unused_parameters=False)
+        model = pDDP(model, device_ids=[opt.rank], output_device=opt.rank,find_unused_parameters=True)
 
     
     
@@ -157,6 +157,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
         model_ema._load_checkpoint(continue_model, f'cuda:{opt.rank}' if HVD3P else None)
 
     criterion = torch.nn.CTCLoss(reduction='none', zero_infinity=True).to(device)
+    criterion_sim = torch.nn.MSELoss(reduce=False, size_average=False)
     converter = CTCLabelConverter(train_dataset.ralph.values())
     
     if OnceExecWorker:
@@ -203,17 +204,33 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
                 if HVD3P: train_sampler.set_epoch(epoch)
                 titer = iter(train_loader)
                 image_tensors, labels = next(titer)
-                
+
             image = image_tensors.to(device)
             text, length = converter.encode(labels)
-            print(8*"*")
-            print(labels)
             labels_snippets = random_select_txt_snippets(labels)
-            labels_input = tokenizer(list(labels_snippets),
+            # print('labels_snippets>>')
+            # print(labels_snippets)
+            text_snippets, length_snippets = converter.encode(labels_snippets)
+
+            gt_sim = gt_txt_sim(text, length, text_snippets, length_snippets)
+            gt_sim = torch.FloatTensor(gt_sim)
+            # print(f'gt_sim is +++++++ {gt_sim}')
+
+            # print(8*'*')
+            # print(labels)
+            # print(text)
+            # print(8*'#')
+            # print(labels_snippets)
+            # print(text_snippets)
+            labels_input = tokenizer(labels_snippets,
                                      return_tensors="pt",
                                      padding=True,
-                                     truncation=True)
+                                     truncation=True).to(device)
 
+            # print(8*"*")
+            # print(labels_input)
+            
+            # exit()
             batch_size = image.size(0)
 
             replay_batch = True
@@ -222,20 +239,39 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
                 maxR -= 1
                 
                 # preds = model(image,text).float()
-                preds, txt_emb = model(image,labels_input).float()
-                print(preds.size())
-                print(txt_emb.size())
-                exit()
+                # preds, txt_emb = model(image,labels_input).float()
+                
+                preds, sim_value = model(image,labels_input)
+                preds = preds.float()
+                # print(type(preds))
+                # print(type(sim_value))
+                # print(preds.shape)
+                # print(sim_value.shape)
+                # print(f'sim_value is : {sim_value}')
+
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size).to(device)
                 preds = preds.permute(1, 0, 2).log_softmax(2)
+                # print(preds.size())
                 
+
                 if i==0 and OnceExecWorker:
                     print('Model inp : ',image.dtype,image.size())
                     print('CTC inp : ',preds.dtype,preds.size(),preds_size[0])
 
                 # To avoid ctc_loss issue, disabled cudnn for the computation of the ctc_loss
                 torch.backends.cudnn.enabled = False
-                cost = criterion(preds, text.to(device), preds_size, length.to(device)).mean() / gAcc
+                # print(f'print preds ====== {preds}')
+                # print(f'print text ======= {text}')
+                
+                cost_ctc = criterion(preds, text.to(device), preds_size, length.to(device)).mean() / gAcc
+                cost_sim = criterion_sim(sim_value.to(device), gt_sim.to(device)).sum()
+                cost = cost_ctc + cost_sim
+                # print('print cost size ========')
+                # print(cost_ctc)
+                # print(cost_ctc.shape)
+                # print(cost_sim.shape)
+                # print(cost.shape)
+                # print('end print cost size =====')
                 torch.backends.cudnn.enabled = True
 
                 train_loss.update(cost)
@@ -286,7 +322,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
 
                 
                 valid_loss, current_accuracy, current_norm_ED, ted, bleu, preds, labels, infer_time = validation(
-                    model_ema.ema, criterion, valid_loader, converter, opt, pO, bert_base_model)
+                    model_ema.ema, criterion_ctc, criterion_sim, valid_loader, converter, opt, pO, bert_base_model)
         
             model.train()
             v_time = time.time() - start_time
