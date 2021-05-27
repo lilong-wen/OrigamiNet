@@ -322,7 +322,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
 
                 
                 valid_loss, current_accuracy, current_norm_ED, ted, bleu, preds, labels, infer_time = validation(
-                    model_ema.ema, criterion_ctc, criterion_sim, valid_loader, converter, opt, pO, bert_base_model)
+                    model_ema.ema, criterion, criterion_sim, valid_loader, converter, opt, pO, bert_base_model)
         
             model.train()
             v_time = time.time() - start_time
