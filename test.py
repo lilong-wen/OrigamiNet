@@ -38,7 +38,8 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
     bleu = 0.0
     infer_time = 0
     valid_loss_avg = Averager()
-    tokenizer = AutoTokenizer.from_pretrained(bert_base_model)#, do_lower_case=config['model_bert']['do_lower_case'])
+    valid_sim_loss_avg = Averager()
+    tokenizer = AutoTokenizer.from_pretrained(bert_base_model, cache_dir='./cached')#, do_lower_case=config['model_bert']['do_lower_case'])
 
     for i, (image_tensors, labels) in enumerate(evaluation_loader):
         batch_size = image_tensors.size(0)
@@ -68,7 +69,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
         # https://github.com/jpuigcerver/PyLaia/issues/16
         torch.backends.cudnn.enabled = False
         cost_ctc = criterion_ctc(preds, text_for_loss, preds_size, length_for_loss).mean()
-        cost_sim = criterion_sim(sim_value.to(device), gt_sim.to(device)).sum()
+        cost_sim = 10000 * criterion_sim(sim_value.to(device), gt_sim.to(device)).sum()
         cost = cost_ctc + cost_sim
         torch.backends.cudnn.enabled = True
 
@@ -78,6 +79,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
 
         infer_time += forward_time
         valid_loss_avg.add(cost)
+        valid_sim_loss_avg.add(cost_sim)
 
         # calculate accuracy.
         for pred, gt in zip(preds_str, labels):
@@ -102,6 +104,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
 
     elif parO.DDP:
         val_loss = metric_sum_ddp(valid_loss_avg.val(), av=True)
+        val_sim_loss = metric_sum_ddp(valid_sim_loss_avg.val(), av=True)
         n_correct  = metric_sum_ddp(n_correct)
         tot_ED  = metric_sum_ddp(tot_ED)
         length_of_gt  = metric_sum_ddp(length_of_gt)
@@ -111,8 +114,9 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
     nelms = float(len(evaluation_loader.dataset))
     tot_ED = tot_ED / float(length_of_gt)
     val_loss = valid_loss_avg.val() if not parO.DDP else val_loss
+    val_sim_loss = valid_sim_loss_avg.val() if not parO.DDP else val_sim_loss
     bleu /= nelms
     norm_ED /= nelms
     accuracy = n_correct / nelms * 100
 
-    return val_loss, accuracy, norm_ED, tot_ED, bleu, preds_str, labels, infer_time
+    return val_loss, val_sim_loss, accuracy, norm_ED, tot_ED, bleu, preds_str, labels, infer_time

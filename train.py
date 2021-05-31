@@ -78,7 +78,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
     train_dataset = ds_load.myLoadDS(train_data_list, train_data_path)
     valid_dataset = ds_load.myLoadDS(test_data_list, test_data_path , ralph=train_dataset.ralph)
     
-    tokenizer = AutoTokenizer.from_pretrained(bert_base_model)#, do_lower_case=config['model_bert']['do_lower_case'])
+    tokenizer = AutoTokenizer.from_pretrained(bert_base_model, cache_dir='./cached')#, do_lower_case=config['model_bert']['do_lower_case'])
     
     if OnceExecWorker:
         print(pO)
@@ -264,7 +264,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
                 # print(f'print text ======= {text}')
                 
                 cost_ctc = criterion(preds, text.to(device), preds_size, length.to(device)).mean() / gAcc
-                cost_sim = criterion_sim(sim_value.to(device), gt_sim.to(device)).sum()
+                cost_sim = 10000 * (criterion_sim(sim_value.to(device), gt_sim.to(device)).sum())
                 cost = cost_ctc + cost_sim
                 # print('print cost size ========')
                 # print(cost_ctc)
@@ -321,7 +321,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
             with torch.no_grad():
 
                 
-                valid_loss, current_accuracy, current_norm_ED, ted, bleu, preds, labels, infer_time = validation(
+                valid_loss, valid_sim_loss, current_accuracy, current_norm_ED, ted, bleu, preds, labels, infer_time = validation(
                     model_ema.ema, criterion, criterion_sim, valid_loader, converter, opt, pO, bert_base_model)
         
             model.train()
@@ -345,6 +345,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
 
                 out  = f'[{i}] Loss: {train_loss.avg:0.5f} time: ({elapsed_time:0.1f},{v_time:0.1f})'
                 out += f' vloss: {valid_loss:0.3f}'
+                out += f' sim_vloss: {valid_sim_loss:0.3f}'
                 out += f' CER: {ted:0.4f} NER: {current_norm_ED:0.4f} lr: {lr_scheduler.get_lr()[0]:0.5f}'
                 out += f' bAcc: {best_accuracy:0.1f}, bNER: {best_norm_ED:0.4f}, bCER: {best_CER:0.4f}, B: {bleu*100:0.2f}'
                 print(out)

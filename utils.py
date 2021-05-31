@@ -1,3 +1,4 @@
+import string
 import torch
 import torch.distributed as dist
 import random
@@ -199,8 +200,15 @@ def random_select_txt_snippets(txt_batch, minLen=10):
             random_start_point = random.choice(list(range(total_len - random_len)))
 
         selected_txt = txt.split()[random_start_point: random_start_point+random_len-1]
-
-        result_txt_batch.append(" ".join(selected_txt))
+        random_p = random.choice(list(range(0,4)))
+        letters = string.ascii_lowercase
+        if random_p == 1:
+            random_selected_txt = []
+            for i in selected_txt:
+                random_selected_txt.append(''.join(random.choice(letters) for i in range(len(i))))
+            result_txt_batch.append(" ".join(random_selected_txt))
+        else:
+            result_txt_batch.append(" ".join(selected_txt))
 
     return result_txt_batch
 

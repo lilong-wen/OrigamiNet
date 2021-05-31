@@ -201,7 +201,7 @@ class OrigamiNet(nn.Module):
 
     def _get_bert_basemodel(self, bert_model_name, freeze_layers):
         try:
-            model = AutoModel.from_pretrained(bert_model_name)#, return_dict=True)
+            model = AutoModel.from_pretrained(bert_model_name, cache_dir='./cached')#, return_dict=True)
             print("Image feature extractor:", bert_model_name)
         except:
             raise ("Invalid model name. Check the config file and pass a BERT model from transformers lybrary")
