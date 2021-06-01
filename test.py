@@ -15,6 +15,7 @@ from transformers import AutoTokenizer
 from utils import Averager
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 def metric_sum_hvd(val, name):
     tensor = torch.tensor(val)

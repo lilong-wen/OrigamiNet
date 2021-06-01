@@ -42,6 +42,7 @@ from test import validation
 
 from transformers import AutoTokenizer
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 parOptions = namedtuple('parOptions', ['DP', 'DDP', 'HVD'])
 parOptions.__new__.__defaults__ = (False,) * len(parOptions._fields)
