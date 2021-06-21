@@ -226,7 +226,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
             labels_input = tokenizer(labels_snippets,
                                      return_tensors="pt",
                                      padding=True,
-                                     truncation=True).to(device)
+                                     truncation=False).to(device)
 
             # print(8*"*")
             # print(labels_input)
@@ -266,6 +266,8 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
                 
                 cost_ctc = criterion(preds, text.to(device), preds_size, length.to(device)).mean() / gAcc
                 cost_sim = 10000 * (criterion_sim(sim_value.to(device), gt_sim.to(device)).sum())
+                # print(8*"@")
+                # print(sim_value)
                 cost = cost_ctc + cost_sim
                 # print('print cost size ========')
                 # print(cost_ctc)
@@ -414,12 +416,10 @@ if __name__ == '__main__':
         rSeed(opt.manualSeed)
 
     opt.num_gpu = torch.cuda.device_count()
-    
 
     if pO.HVD:
         opt.world_size = hvd.size()
         opt.rank       = hvd.rank()
-    
     if not pO.DDP:
         train(opt)
     else:
