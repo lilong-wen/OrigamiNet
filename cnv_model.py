@@ -148,9 +148,36 @@ class Simcal(nn.Module):
 '''
 
 @gin.configurable
+class RNN_SIM(nn.Module):
+
+    def __init__(self, EMBEDDING_DIM, RNN_UNITS, BI_RNN, RNN_LAYERS):
+        super().__init__()
+
+        # similarity measure
+        self.rnn = nn.GRU(EMBEDDING_DIM, RNN_UNITS, bidirectional=BI_RNN, 
+                          num_layers=RNN_LAYERS, batch_first=True)
+        self.lin1 = nn.Linear(RNN_UNITS * 2, 96)
+        self.lin2 = nn.Linear(96, 28)
+        self.out = nn.Linear(28, 1)
+
+    def forward(self, x1, x2):
+        try:
+            # x1 = self.embedding(x1)
+            # x2 = self.embedding(x2)
+            x1 = self.rnn(x1)[1]
+            x1 = x1.view(-1, x1.size()[1], x1.size()[2]).sum(dim=0)
+            x2 = self.rnn(x2)[1]
+            x2 = x2.view(-1, x2.size()[1], x2.size()[2]).sum(dim=0)
+            lin = self.lin1(torch.cat((x1, x2), 1))
+            lin = torch.relu(self.lin2(lin))
+            pred = torch.sigmoid(self.out(lin))
+            return pred
+        except IndexError:
+            print(x1.max(), x2.max())
+
+@gin.configurable
 class OrigamiNet(nn.Module):
     def __init__(self, n_channels, o_classes, wmul, lreszs, lszs, nlyrs, fup, GradCheck,
-                 VOCAB_SIZE, EMBEDDING_DIM, RNN_UNITS, BI_RNN, RNN_LAYERS,
                  reduceAxis=3):
         super().__init__()
 
@@ -192,12 +219,9 @@ class OrigamiNet(nn.Module):
         self.gc = GradCheck
         self.reduceAxis = reduceAxis
 
-        # similarity measure
-        self.rnn = nn.GRU(EMBEDDING_DIM, RNN_UNITS, bidirectional=BI_RNN, 
-                          num_layers=RNN_LAYERS, batch_first=True)
-        self.lin1 = nn.Linear(RNN_UNITS * 2, 96)
-        self.lin2 = nn.Linear(96, 28)
-        self.out = nn.Linear(28, 1)
+        # sim
+        # self.rnn_sim = nn.Sequential(RNN_SIM())
+        self.rnn_sim = RNN_SIM()
 
     def _get_bert_basemodel(self, bert_model_name, freeze_layers):
         try:
@@ -241,7 +265,7 @@ class OrigamiNet(nn.Module):
             out_emb = self.bert_l2(x)
 
         return out_emb
-    
+    '''
     def sim_measure(self, x1, x2):
         try:
             # x1 = self.embedding(x1)
@@ -256,6 +280,7 @@ class OrigamiNet(nn.Module):
             return pred
         except IndexError:
             print(x1.max(), x2.max())
+    '''
 
     def forward(self, x, encoded_inputs):
         x = self.Initsq(x)
@@ -276,7 +301,7 @@ class OrigamiNet(nn.Module):
 
         # print(f'input x shape {x.shape}')
         # print(f'input txt_emb shape {txt_emb.shape}')
-        sim = self.sim_measure(x, txt_emb)
+        sim = self.rnn_sim(x, txt_emb)
 
         return x, sim
-    
+
