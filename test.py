@@ -54,7 +54,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
         labels_input = tokenizer(labels_snippets,
                                  return_tensors="pt",
                                  padding=True,
-                                 truncation=True).to(device)
+                                 truncation=False).to(device)
 
         start_time = time.time()
 
@@ -71,6 +71,7 @@ def validation(model, criterion_ctc, criterion_sim, evaluation_loader, converter
         torch.backends.cudnn.enabled = False
         cost_ctc = criterion_ctc(preds, text_for_loss, preds_size, length_for_loss).mean()
         cost_sim = 10000 * criterion_sim(sim_value.to(device), gt_sim.to(device)).sum()
+
         cost = cost_ctc + cost_sim
         torch.backends.cudnn.enabled = True
 
