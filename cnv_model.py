@@ -164,6 +164,7 @@ class RNN_SIM(nn.Module):
         try:
             # x1 = self.embedding(x1)
             # x2 = self.embedding(x2)
+
             x1 = self.rnn(x1)[1]
             x1 = x1.view(-1, x1.size()[1], x1.size()[2]).sum(dim=0)
             x2 = self.rnn(x2)[1]
