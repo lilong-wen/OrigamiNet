@@ -37,6 +37,7 @@ import wandb
 import ds_load
 
 from utils import CTCLabelConverter, Averager, ModelEma, Metric, random_select_txt_snippets, gt_txt_sim
+# from cnv_model_r import OrigamiNet_extended, ginM
 from cnv_model import OrigamiNet, ginM
 from test import validation
 
@@ -110,6 +111,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
                     num_workers = int(workers), sampler=valid_sampler if HVD3P else None)
     
     model = OrigamiNet()
+    # model = OrigamiNet_extended()
     model.apply(init_bn)
     model.train()
 
@@ -405,6 +407,7 @@ def launch_fn(rank, opt):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
+    # parser.add_argument('--gin', default='iam/iam.gin', help='Gin config file')
     parser.add_argument('--gin', default='iam/iam.gin', help='Gin config file')
 
     opt = parser.parse_args()

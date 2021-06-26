@@ -3,6 +3,7 @@ manualSeed = 1111
 dist = 'DDP'
 
 n_channels = 1
+num_gates = 2
 o_classes = 80
 
 GradCheck = 0
@@ -20,7 +21,7 @@ SameTrCollate.prjVal = 125
 
 # Parameters for train (train.py):
 # ==============================================================================
-train.experiment_name = 'iam_gin_test_'
+train.experiment_name = 'iam_gin_test3_'
 
 train.AMP = False
 train.WdB = False
@@ -33,7 +34,8 @@ train.train_batch_size = 1
 train.val_batch_size   = 1
 train.workers = 1
 train.lr = 0.01
-train.continue_model = 'saved_models/iam_gin_test_/best_norm_ED.pth'
+train.continue_model = 'saved_models/iam_gin_test3_/best_norm_ED.pth'
+# train.continue_model = ''
 train.valInterval = 500
 train.num_iter = 0
 train.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
@@ -49,9 +51,9 @@ OrigamiNet.nlyrs = 12
 OrigamiNet.wmul = 1.0
 
 OrigamiNet.lszs = {0:  128,
-            2:  256,
-            4:  512,
-            11: 256  }
+                       2:  256,
+                       4:  512,
+                       11: 256  }
 
 ##resize structure##
 MaxPool2d.kernel_size = (2,2)
@@ -73,12 +75,12 @@ OrigamiNet.lreszs = {
                   11: @s2/Upsample()
             }
             
-# similarity measuer part
-OrigamiNet.VOCAB_SIZE = 10000
-OrigamiNet.EMBEDDING_DIM = 80
-OrigamiNet.RNN_UNITS = 64
-OrigamiNet.BI_RNN = True
-OrigamiNet.RNN_LAYERS = 2
+# RNN_SIM for similarity part
+# RNN_SIM.VOCAB_SIZE = 10000
+RNN_SIM.EMBEDDING_DIM = 80
+RNN_SIM.RNN_UNITS = 64
+RNN_SIM.BI_RNN = True
+RNN_SIM.RNN_LAYERS = 2
 
 
 # Parameters for InitBlock (cnv_model.py):
@@ -87,4 +89,9 @@ InitBlock.n_channels = %n_channels
 
 # Parameters for GateBlock (cnv_model.py):
 # ==============================================================================
+#GateBlock.GradCheck = %num_gates
 GateBlock.GradCheck = %GradCheck
+
+# TextEncoder.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
+# TextEncoder.out_dim = 80
+# TextEncoder.freeze_layers = [0,1,2,3,4,5]
