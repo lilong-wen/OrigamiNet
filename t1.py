@@ -201,9 +201,9 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
         for j in trange(valInterval, leave=False, desc='Training'):
 
             try:
-                print(218*"*")
+                #print(218*"*")
                 image_tensors, labels = next(titer)
-                print(218*"@")
+                #print(218*"@")
             except StopIteration:
                 epoch += 1
                 if HVD3P: train_sampler.set_epoch(epoch)
@@ -221,6 +221,7 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
 
             gt_sim = gt_txt_sim(text, length, text_snippets, length_snippets)
             gt_sim = torch.FloatTensor(gt_sim)
+
             # print(f'gt_sim is +++++++ {gt_sim}')
 
             # print(8*'*')
@@ -258,6 +259,12 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
 
                 preds_size = torch.IntTensor([preds.size(1)] * batch_size).to(device)
                 preds = preds.permute(1, 0, 2).log_softmax(2)
+
+                ######################### not sure
+                # _, preds_index = preds.max(2)
+                # preds_index = preds_index.transpose(1, 0).contiguous().view(-1)
+                # preds_str = converter.decode(preds_index.data, preds_size.data)
+                #########################
                 # print(preds.size())
 
 
@@ -270,11 +277,26 @@ def train(opt, AMP, WdB, train_data_path, train_data_list, test_data_path, test_
                 # print(f'print preds ====== {preds}')
                 # print(f'print text ======= {text}')
 
+
+
                 cost_ctc = criterion(preds, text.to(device), preds_size, length.to(device)).mean() / gAcc
-                cost_sim = 10000 * (criterion_sim(sim_value.to(device), gt_sim.to(device)).sum())
+                # gt_sim = gt_txt_sim(text, length, text_snippets, length_snippets)
+                # preds_text, pred_length = converter.encode(preds_str)
+                # gt_sim = gt_txt_sim(preds_text, pred_length, text_snippets, length_snippets)
+                gt_sim = torch.FloatTensor(gt_sim)
+                cost_sim = criterion_sim(sim_value.to(device), gt_sim.to(device)).sum()
                 # print(8*"@")
                 # print(sim_value)
-                cost = cost_ctc + cost_sim
+                if i >= 50000 and i % 2 == 0:
+                    for name, value in model.named_parameters():
+                        if 'SimSequence' not in name:
+                            value.requires_grad = False
+                    cost = 1000 * cost_sim
+                else:
+                    for name, value in model.named_parameters():
+                        if 'SimSequence' not in name:
+                            value.requires_grad = True
+                    cost = cost_ctc + cost_sim
                 # print('print cost size ========')
                 # print(cost_ctc)
                 # print(cost_ctc.shape)

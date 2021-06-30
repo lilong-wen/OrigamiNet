@@ -21,7 +21,7 @@ SameTrCollate.prjVal = 125
 
 # Parameters for train (train.py):
 # ==============================================================================
-train.experiment_name = 'iam_gin_test4_'
+train.experiment_name = 'iam_gin_test7_'
 
 train.AMP = False
 train.WdB = False
@@ -34,6 +34,7 @@ train.train_batch_size = 1
 train.val_batch_size   = 1
 train.workers = 1
 train.lr = 0.01
+# train.continue_model = 'saved_models/iam_gin_test4_/best_norm_ED.pth'
 train.continue_model = ''
 train.valInterval = 500
 train.num_iter = 0
@@ -81,6 +82,10 @@ RNN_SIM.RNN_UNITS = 64
 RNN_SIM.BI_RNN = True
 RNN_SIM.RNN_LAYERS = 2
 
+SiaGRU.embeds_dim = 80
+SiaGRU.hidden_size = 64
+SiaGRU.num_layer = 2
+
 
 # Parameters for InitBlock (cnv_model.py):
 # ==============================================================================
@@ -92,5 +97,5 @@ InitBlock.num_channels = %num_channels
 GateBlock.GradCheck = %GradCheck
 
 TextEncoder.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
-TextEncoder.out_dim = 80
+TextEncoder.out_dim = 1100
 TextEncoder.freeze_layers = [0,1,2,3,4,5]

@@ -242,7 +242,7 @@ def launch_fn(rank, opt):
     train(opt)
 
 
-def val(model_path='saved_models/iam_gin_test_/best_norm_ED.pth'):
+def val(model_path='saved_models/iam_gin_test4_/best_norm_ED.pth'):
 
     HVD3P = pO.HVD or pO.DDP
 
@@ -253,7 +253,9 @@ def val(model_path='saved_models/iam_gin_test_/best_norm_ED.pth'):
 
     #model.load_state_dict(checkpoint['model'], strict=False)
     # model_ema._load_checkpoint(model_path, 'cuda:1')
-    model_ema._load_checkpoint(model_path, f'cuda:{opt.rank}' if HVD3P else None)
+    map_location = {'cuda:%d' % 0: 'cuda:%d' % 0}
+    # model_ema._load_checkpoint(model_path, map_location=map_location)
+    model_ema.load(model_path, map_location=map_location)
     test_data_list  = 'iam/val.gc'
     valid_dataset = ds_load.myLoadDS(test_data_list, '/home/zju/w4/OrigamiNet/iam_data/pargs/')
     # start_time = time.time()
@@ -309,3 +311,5 @@ if __name__ == '__main__':
     opt.num_gpu = torch.cuda.device_count()
 
     mp.spawn(launch_fn, args=(opt,), nprocs=opt.num_gpu)
+
+    # val()

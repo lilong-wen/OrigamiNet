@@ -60,9 +60,11 @@ class TextEncoder(nn.Module):
 
         with torch.no_grad():
             sentence_embeddings = self.mean_pooling(outputs, encoded_inputs['attention_mask'])
-            x = self.bert_l1(sentence_embeddings)
-            x = F.relu(x)
-            out_emb = self.bert_l2(x)
+            # print(18*"*")
+            # print(sentence_embeddings.size())
+        x = self.bert_l1(sentence_embeddings)
+        x = F.relu(x)
+        out_emb = self.bert_l2(x)
 
         return out_emb
 
@@ -204,17 +206,65 @@ class RNN_SIM(nn.Module):
         try:
             # x1 = self.embedding(x1)
             # x2 = self.embedding(x2)
+            # print(x1.shape)
+            # print(x2.shape)
             x1 = self.rnn(x1)[1]
             x1 = x1.view(-1, x1.size()[1], x1.size()[2]).sum(dim=0)
             x2 = self.rnn(x2)[1]
             x2 = x2.view(-1, x2.size()[1], x2.size()[2]).sum(dim=0)
             lin = self.lin1(torch.cat((x1, x2), 1))
-            lin = torch.relu(self.lin2(lin))
+            # lin = torch.relu(self.lin2(lin))
+            # pred = torch.sigmoid(self.out(lin))
+            lin = torch.tanh(self.lin2(lin))
             pred = torch.sigmoid(self.out(lin))
             return pred
         except IndexError:
             print(x1.max(), x2.max())
 
+@gin.configurable
+class SiaGRU(nn.Module):
+    def __init__(self, embeds_dim, hidden_size, num_layer):
+        super(SiaGRU, self).__init__()
+        self.embeds_dim = embeds_dim
+
+        self.ln_embeds = nn.LayerNorm(self.embeds_dim)
+        self.hidden_size = hidden_size
+        self.num_layer = num_layer
+        self.gru = nn.LSTM(self.embeds_dim, self.hidden_size, batch_first=True, bidirectional=True, num_layers=2)
+        self.h0 = self.init_hidden((2 * self.num_layer, 1, self.hidden_size))
+        self.fc = nn.Linear(4, 1)
+
+    def init_hidden(self, size):
+        h0 = nn.Parameter(torch.randn(size))
+        nn.init.xavier_normal_(h0)
+        return h0
+
+    # def forward_once(self, x):
+    #
+    #     output, hidden, cell = self.gru(x)
+    #     return hidden.squeeze()
+
+    def forward(self, input):
+        # sent1: batch_size * seq_len
+
+        sent1 = input[0]
+        sent2 = input[1]
+
+        # embeds: batch_size * seq_len => batch_size * seq_len * dim
+        x1 = self.ln_embeds(sent1)
+        x2 = self.ln_embeds(sent2)
+
+        # encoding1 = self.forward_once(x1)
+        # encoding2 = self.forward_once(x2)
+
+        encoding1 = self.gru(x1)[1][0].squeeze()
+        encoding2 = self.gru(x2)[1][0].squeeze()
+
+        sim = torch.exp(-torch.norm(encoding1 - encoding2, p=2, dim=-1, keepdim=True))
+
+        sim_value = self.fc(sim.permute(1, 0))
+        print(sim_value)
+        return sim_value
 
 @gin.configurable
 class OrigamiNet_extended(nn.Module):
@@ -265,9 +315,12 @@ class OrigamiNet_extended(nn.Module):
         self.TextSequence = nn.Sequential(
             TextEncoder()
         )
+
         self.SimSequence = nn.Sequential(
-            RNN_SIM()
+            # RNN_SIM()
+            SiaGRU()
         )
+
 
         self.norm1 = LN()
         self.checkGradent = GradCheck
@@ -288,8 +341,16 @@ class OrigamiNet_extended(nn.Module):
         x = self.norm1(x)
         x = x.permute(0, 2, 1)
 
-        txt_emb = self.TextSequence(txt_tokens).unsqueeze(1)
-        #print(txt_emb.shape)
+        txt_emb = self.TextSequence(txt_tokens).unsqueeze(-1)
+        txt_emb = txt_emb.expand(txt_emb.size()[0], txt_emb.size()[1], x.size()[-1])
+        # x = x.permute(0, 2, 1)
+        # txt_emb = txt_emb.permute(0, 2, 1)
+
+        # print("x shape")
+        # print(x.shape)
+        # print("txt emb shape")
+        # print(txt_emb.shape)
+
         sim = self.SimSequence([x, txt_emb])
 
         return x, sim

@@ -222,14 +222,22 @@ def gt_txt_sim(txt_batch, txt_len, snippets_batch, snippets_len):
 
     distance_sum = []
 
+    # if txt_len == []:
+    #
+    #     return sum([len(a) for a in snippets_batch])
+
+    # print(txt_len)
     for num, len_item in enumerate(txt_len):
+        # print(num)
+        # print(len_item)
         # print(f'len_item is : {len_item}')
         start_txt = end_txt
         end_txt = txt_len[num]
         start_snippets = end_snippets
         end_snippets = snippets_len[num]
-        distance = editdistance.eval(txt_batch[start_txt: end_txt],
-                                     snippets_batch[start_snippets: end_snippets]) / len_item.item()
+        if len_item.item() != 0:
+            distance = editdistance.eval(txt_batch[start_txt: end_txt],
+                                         snippets_batch[start_snippets: end_snippets]) / len_item.item()
 
         distance_sum.append(distance)
 
